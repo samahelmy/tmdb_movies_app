@@ -5,6 +5,7 @@ import '../bloc/movie_bloc.dart';
 import '../bloc/movie_event.dart';
 import '../bloc/movie_state.dart';
 import '../model/movie.dart';
+import 'movie_search_screen.dart';
 
 class MovieHomeScreen extends StatefulWidget {
   const MovieHomeScreen({super.key});
@@ -36,7 +37,12 @@ class _MovieHomeScreenState extends State<MovieHomeScreen> {
           IconButton(
             icon: const Icon(Icons.search, color: Colors.white),
             onPressed: () {
-              // سنربط شاشة البحث لاحقاً
+              Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const MovieSearchScreen(),
+      ),
+    );
             },
           ),
         ],
