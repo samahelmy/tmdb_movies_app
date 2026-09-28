@@ -6,6 +6,7 @@ import '../bloc/movie_event.dart';
 import '../bloc/movie_state.dart';
 import '../model/movie.dart';
 import 'movie_search_screen.dart';
+import 'my_lists_screen.dart';
 
 class MovieHomeScreen extends StatefulWidget {
   const MovieHomeScreen({super.key});
@@ -33,19 +34,32 @@ class _MovieHomeScreenState extends State<MovieHomeScreen> {
           'TMDB Movies',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const MovieSearchScreen(),
-      ),
-    );
-            },
-          ),
-        ],
+       actions: [
+  IconButton(
+    icon: const Icon(Icons.bookmarks, color: Colors.amber),
+    tooltip: "My Lists",
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MyListsScreen(),
+        ),
+      );
+    },
+  ),
+  IconButton(
+    icon: const Icon(Icons.search, color: Colors.white),
+    tooltip: "Search",
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MovieSearchScreen(),
+        ),
+      );
+    },
+  ),
+],
       ),
       body: BlocBuilder<MovieBloc, MovieState>(
         builder: (context, state) {

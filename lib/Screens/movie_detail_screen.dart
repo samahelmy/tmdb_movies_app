@@ -1,11 +1,74 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../model/movie.dart';
+import '../service/movie_list_service.dart';
 
-class MovieDetailScreen extends StatelessWidget {
+class MovieDetailScreen extends StatefulWidget {
   final Movie movie;
 
   const MovieDetailScreen({super.key, required this.movie});
+
+  @override
+  State<MovieDetailScreen> createState() => _MovieDetailScreenState();
+}
+
+class _MovieDetailScreenState extends State<MovieDetailScreen> {
+  final MovieListService _listService = MovieListService();
+
+  
+  bool isFavorite = false;
+  bool isWatching = false;
+  bool isWatched = false;
+  bool isWantToWatch = false;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkInitialStatus();
+  }
+
+  Future<void> _checkInitialStatus() async {
+    final fav = await _listService.isMovieInList('favorites', widget.movie.id);
+    final watching = await _listService.isMovieInList('watching', widget.movie.id);
+    final watched = await _listService.isMovieInList('watched', widget.movie.id);
+    final want = await _listService.isMovieInList('want_to_watch', widget.movie.id);
+
+    if (mounted) {
+      setState(() {
+        isFavorite = fav;
+        isWatching = watching;
+        isWatched = watched;
+        isWantToWatch = want;
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _toggleList(String listType, bool currentStatus) async {
+    try {
+      if (currentStatus) {
+        await _listService.removeMovie(listType, widget.movie.id);
+        _showToast("Removed from List");
+      } else {
+        await _listService.addMovie(listType, widget.movie);
+        _showToast("Added to List");
+      }
+      _checkInitialStatus();
+    } catch (e) {
+      _showToast('Error $e');
+    }
+  }
+
+  void _showToast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        duration: const Duration(seconds: 1),
+        backgroundColor: Colors.grey[850],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +82,7 @@ class MovieDetailScreen extends StatelessWidget {
             backgroundColor: const Color(0xFF1E1E1E),
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
-                movie.title,
+                widget.movie.title,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -30,12 +93,12 @@ class MovieDetailScreen extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   CachedNetworkImage(
-                    imageUrl: movie.backdropPath.isNotEmpty
-                        ? movie.fullBackdropPath
-                        : movie.fullPosterPath,
+                    imageUrl: widget.movie.backdropPath.isNotEmpty
+                        ? widget.movie.fullBackdropPath
+                        : widget.movie.fullPosterPath,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(color: Colors.grey[900]),
-                    errorWidget: (context, url, error) => Container(color: Colors.grey[900]),
+                    placeholder: (_, __) => Container(color: Colors.grey[900]),
+                    errorWidget: (_, __, ___) => Container(color: Colors.grey[900]),
                   ),
                   const DecoratedBox(
                     decoration: BoxDecoration(
@@ -61,7 +124,7 @@ class MovieDetailScreen extends StatelessWidget {
                       const Icon(Icons.star, color: Colors.amber, size: 20),
                       const SizedBox(width: 4),
                       Text(
-                        movie.voteAverage.toStringAsFixed(1),
+                        widget.movie.voteAverage.toStringAsFixed(1),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -72,7 +135,7 @@ class MovieDetailScreen extends StatelessWidget {
                       const Icon(Icons.calendar_month, color: Colors.grey, size: 18),
                       const SizedBox(width: 6),
                       Text(
-                        movie.releaseDate.isNotEmpty ? movie.releaseDate : 'N/A',
+                        widget.movie.releaseDate.isNotEmpty ? widget.movie.releaseDate : 'N/A',
                         style: const TextStyle(color: Colors.grey, fontSize: 14),
                       ),
                     ],
@@ -87,16 +150,43 @@ class MovieDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildActionChip(context, 'Favorites', Icons.favorite_border, Colors.redAccent),
-                      _buildActionChip(context, 'Watching', Icons.play_circle_outline, Colors.blueAccent),
-                      _buildActionChip(context, 'Watched', Icons.check_circle_outline, Colors.green),
-                      _buildActionChip(context, 'Want to Watch', Icons.bookmark_border, Colors.orangeAccent),
-                    ],
-                  ),
+                  if (isLoading)
+                    const Center(child: CircularProgressIndicator(color: Colors.amber))
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildFilterChip(
+                          label: 'Favorites',
+                          icon: Icons.favorite,
+                          isActive: isFavorite,
+                          activeColor: Colors.redAccent,
+                          onSelected: () => _toggleList('favorites', isFavorite),
+                        ),
+                        _buildFilterChip(
+                          label: 'Watching',
+                          icon: Icons.play_circle_fill,
+                          isActive: isWatching,
+                          activeColor: Colors.blueAccent,
+                          onSelected: () => _toggleList('watching', isWatching),
+                        ),
+                        _buildFilterChip(
+                          label: 'Watched',
+                          icon: Icons.check_circle,
+                          isActive: isWatched,
+                          activeColor: Colors.green,
+                          onSelected: () => _toggleList('watched', isWatched),
+                        ),
+                        _buildFilterChip(
+                          label: 'Want to Watch',
+                          icon: Icons.bookmark,
+                          isActive: isWantToWatch,
+                          activeColor: Colors.orangeAccent,
+                          onSelected: () => _toggleList('want_to_watch', isWantToWatch),
+                        ),
+                      ],
+                    ),
                   const SizedBox(height: 24),
                   const Text(
                     "Overview",
@@ -108,7 +198,7 @@ class MovieDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    movie.overview.isNotEmpty ? movie.overview : "No Details",
+                    widget.movie.overview.isNotEmpty ? widget.movie.overview : 'لا يوجد وصف متاح لهذا الفيلم.',
                     style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 15,
@@ -125,21 +215,31 @@ class MovieDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActionChip(BuildContext context, String label, IconData icon, Color color) {
-    return ActionChip(
-      avatar: Icon(icon, color: color, size: 18),
-      label: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+  Widget _buildFilterChip({
+    required String label,
+    required IconData icon,
+    required bool isActive,
+    required Color activeColor,
+    required VoidCallback onSelected,
+  }) {
+    return FilterChip(
+      avatar: Icon(
+        icon,
+        color: isActive ? Colors.white : activeColor,
+        size: 18,
+      ),
+      label: Text(
+        label,
+        style: TextStyle(
+          color: isActive ? Colors.white : Colors.white70,
+          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      selected: isActive,
+      selectedColor: activeColor,
       backgroundColor: const Color(0xFF1E1E1E),
-      side: BorderSide(color: color.withOpacity(0.5)),
-      onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Added To $label'),
-            duration: const Duration(seconds: 1),
-            backgroundColor: Colors.grey[850],
-          ),
-        );
-      },
+      side: BorderSide(color: activeColor.withOpacity(0.5)),
+      onSelected: (_) => onSelected(),
     );
   }
 }
