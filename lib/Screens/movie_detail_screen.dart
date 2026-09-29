@@ -15,7 +15,6 @@ class MovieDetailScreen extends StatefulWidget {
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   final MovieListService _listService = MovieListService();
 
-  
   bool isFavorite = false;
   bool isWatching = false;
   bool isWatched = false;
@@ -29,34 +28,50 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Future<void> _checkInitialStatus() async {
-    final fav = await _listService.isMovieInList('favorites', widget.movie.id);
-    final watching = await _listService.isMovieInList('watching', widget.movie.id);
-    final watched = await _listService.isMovieInList('watched', widget.movie.id);
-    final want = await _listService.isMovieInList('want_to_watch', widget.movie.id);
+    try {
+      final results = await Future.wait([
+        _listService.isMovieInList('favorites', widget.movie.id),
+        _listService.isMovieInList('watching', widget.movie.id),
+        _listService.isMovieInList('watched', widget.movie.id),
+        _listService.isMovieInList('want_to_watch', widget.movie.id),
+      ]);
 
-    if (mounted) {
-      setState(() {
-        isFavorite = fav;
-        isWatching = watching;
-        isWatched = watched;
-        isWantToWatch = want;
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isFavorite = results[0];
+          isWatching = results[1];
+          isWatched = results[2];
+          isWantToWatch = results[3];
+          isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
   Future<void> _toggleList(String listType, bool currentStatus) async {
+    // Instant optimistic update
+    setState(() {
+      if (listType == 'favorites') isFavorite = !isFavorite;
+      if (listType == 'watching') isWatching = !isWatching;
+      if (listType == 'watched') isWatched = !isWatched;
+      if (listType == 'want_to_watch') isWantToWatch = !isWantToWatch;
+    });
+
     try {
       if (currentStatus) {
         await _listService.removeMovie(listType, widget.movie.id);
-        _showToast("Removed from List");
+        _showToast('Removed from list successfully');
       } else {
         await _listService.addMovie(listType, widget.movie);
-        _showToast("Added to List");
+        _showToast('Added to list successfully');
       }
-      _checkInitialStatus();
     } catch (e) {
-      _showToast('Error $e');
+      _checkInitialStatus();
+      _showToast('Failed to update: $e');
     }
   }
 
@@ -65,7 +80,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       SnackBar(
         content: Text(msg),
         duration: const Duration(seconds: 1),
-        backgroundColor: Colors.grey[850],
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF1E1E26),
       ),
     );
   }
@@ -73,22 +89,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: const Color(0xFF0F0F12),
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: 320,
             pinned: true,
-            backgroundColor: const Color(0xFF1E1E1E),
+            backgroundColor: const Color(0xFF141419),
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                widget.movie.title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  shadows: [Shadow(color: Colors.black, blurRadius: 10)],
-                ),
-              ),
               background: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -97,15 +105,19 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         ? widget.movie.fullBackdropPath
                         : widget.movie.fullPosterPath,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(color: Colors.grey[900]),
-                    errorWidget: (_, __, ___) => Container(color: Colors.grey[900]),
+                    placeholder: (_, __) => Container(color: Colors.black26),
+                    errorWidget: (_, __, ___) => Container(color: Colors.black26),
                   ),
-                  const DecoratedBox(
+                  DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Color(0xFF121212)],
+                        colors: [
+                          Colors.transparent,
+                          const Color(0xFF0F0F12).withOpacity(0.5),
+                          const Color(0xFF0F0F12),
+                        ],
                       ),
                     ),
                   ),
@@ -115,97 +127,123 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    widget.movie.title,
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 20),
-                      const SizedBox(width: 4),
-                      Text(
-                        widget.movie.voteAverage.toStringAsFixed(1),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.star, color: Colors.amber, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              widget.movie.voteAverage.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: Colors.amber,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 20),
-                      const Icon(Icons.calendar_month, color: Colors.grey, size: 18),
+                      const SizedBox(width: 16),
+                      const Icon(Icons.calendar_today_rounded, color: Colors.white38, size: 15),
                       const SizedBox(width: 6),
                       Text(
                         widget.movie.releaseDate.isNotEmpty ? widget.movie.releaseDate : 'N/A',
-                        style: const TextStyle(color: Colors.grey, fontSize: 14),
+                        style: const TextStyle(color: Colors.white54, fontSize: 14),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 28),
                   const Text(
-                   "My Lists",
+                    'Manage Lists',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: Colors.white70,
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   if (isLoading)
-                    const Center(child: CircularProgressIndicator(color: Colors.amber))
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: CircularProgressIndicator(color: Colors.amber),
+                    )
                   else
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: 12,
+                      runSpacing: 10,
                       children: [
-                        _buildFilterChip(
-                          label: 'Favorites',
-                          icon: Icons.favorite,
+                        _buildActionButton(
+                          label: 'Favorite',
+                          icon: isFavorite ? Icons.favorite : Icons.favorite_border,
                           isActive: isFavorite,
                           activeColor: Colors.redAccent,
-                          onSelected: () => _toggleList('favorites', isFavorite),
+                          onTap: () => _toggleList('favorites', isFavorite),
                         ),
-                        _buildFilterChip(
+                        _buildActionButton(
                           label: 'Watching',
-                          icon: Icons.play_circle_fill,
+                          icon: isWatching ? Icons.play_circle : Icons.play_circle_outline,
                           isActive: isWatching,
-                          activeColor: Colors.blueAccent,
-                          onSelected: () => _toggleList('watching', isWatching),
+                          activeColor: Colors.cyanAccent,
+                          onTap: () => _toggleList('watching', isWatching),
                         ),
-                        _buildFilterChip(
+                        _buildActionButton(
                           label: 'Watched',
-                          icon: Icons.check_circle,
+                          icon: isWatched ? Icons.check_circle : Icons.check_circle_outline,
                           isActive: isWatched,
-                          activeColor: Colors.green,
-                          onSelected: () => _toggleList('watched', isWatched),
+                          activeColor: Colors.greenAccent,
+                          onTap: () => _toggleList('watched', isWatched),
                         ),
-                        _buildFilterChip(
-                          label: 'Want to Watch',
-                          icon: Icons.bookmark,
+                        _buildActionButton(
+                          label: 'Plan to Watch',
+                          icon: isWantToWatch ? Icons.bookmark : Icons.bookmark_outline,
                           isActive: isWantToWatch,
-                          activeColor: Colors.orangeAccent,
-                          onSelected: () => _toggleList('want_to_watch', isWantToWatch),
+                          activeColor: Colors.amber,
+                          onTap: () => _toggleList('want_to_watch', isWantToWatch),
                         ),
                       ],
                     ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
                   const Text(
-                    "Overview",
+                    'Overview',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Text(
-                    widget.movie.overview.isNotEmpty ? widget.movie.overview : 'لا يوجد وصف متاح لهذا الفيلم.',
+                    widget.movie.overview.isNotEmpty
+                        ? widget.movie.overview
+                        : 'No overview available for this movie.',
                     style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 15,
-                      height: 1.5,
+                      height: 1.6,
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 50),
                 ],
               ),
             ),
@@ -215,31 +253,56 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     );
   }
 
-  Widget _buildFilterChip({
+  Widget _buildActionButton({
     required String label,
     required IconData icon,
     required bool isActive,
     required Color activeColor,
-    required VoidCallback onSelected,
+    required VoidCallback onTap,
   }) {
-    return FilterChip(
-      avatar: Icon(
-        icon,
-        color: isActive ? Colors.white : activeColor,
-        size: 18,
-      ),
-      label: Text(
-        label,
-        style: TextStyle(
-          color: isActive ? Colors.white : Colors.white70,
-          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive ? activeColor.withOpacity(0.18) : const Color(0xFF1B1B22),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? activeColor : Colors.white24,
+            width: 1.2,
+          ),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: activeColor.withOpacity(0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  )
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isActive ? activeColor : Colors.white70,
+              size: 19,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: isActive ? Colors.white : Colors.white70,
+                fontSize: 13,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
-      selected: isActive,
-      selectedColor: activeColor,
-      backgroundColor: const Color(0xFF1E1E1E),
-      side: BorderSide(color: activeColor.withOpacity(0.5)),
-      onSelected: (_) => onSelected(),
     );
   }
 }

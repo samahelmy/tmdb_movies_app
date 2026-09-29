@@ -1,6 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_study/Screens/login_screen.dart';
 import 'firebase_options.dart';
 import 'service/tmdb_service.dart';
 import 'bloc/movie_bloc.dart';
@@ -30,7 +32,9 @@ class MovieApp extends StatelessWidget {
         theme: ThemeData.dark().copyWith(
           scaffoldBackgroundColor: const Color(0xFF121212),
         ),
-        home: const MovieHomeScreen(),
+        home: FirebaseAuth.instance.currentUser != null
+    ? const MovieHomeScreen()
+    : const LoginScreen(),
       ),
     );
   }

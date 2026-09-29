@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../bloc/movie_bloc.dart';
 import '../bloc/movie_event.dart';
 import '../bloc/movie_state.dart';
+import '../model/movie.dart';
 import 'movie_detail_screen.dart';
 
 class MovieSearchScreen extends StatefulWidget {
@@ -16,22 +17,23 @@ class MovieSearchScreen extends StatefulWidget {
 
 class _MovieSearchScreenState extends State<MovieSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  Timer? _debounce;
+  Timer? _debounceTimer;
 
-  
   void _onSearchChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        context.read<MovieBloc>().add(SearchMoviesEvent(query));
+    if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
+
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      final trimmed = query.trim();
+      if (trimmed.isNotEmpty) {
+        context.read<MovieBloc>().add(SearchMoviesEvent(trimmed));
       }
     });
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
-    _debounce?.cancel();
     super.dispose();
   }
 
@@ -41,13 +43,15 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E1E1E),
+        elevation: 0,
         title: TextField(
           controller: _searchController,
           autofocus: true,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+          cursorColor: Colors.amber,
           decoration: const InputDecoration(
-            hintText: "Search For a Movie",
-            hintStyle: TextStyle(color: Colors.white54),
+            hintText: 'Search for movies...',
+            hintStyle: TextStyle(color: Colors.white38),
             border: InputBorder.none,
           ),
           onChanged: _onSearchChanged,
@@ -55,98 +59,136 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
         actions: [
           if (_searchController.text.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.clear, color: Colors.white),
+              icon: const Icon(Icons.clear, color: Colors.white70),
               onPressed: () {
                 _searchController.clear();
-                context.read<MovieBloc>().add(SearchMoviesEvent(''));
                 setState(() {});
               },
             ),
         ],
       ),
       body: BlocBuilder<MovieBloc, MovieState>(
+        buildWhen: (previous, current) {
+          // عزل شاشة البحث بحيث لا تتأثر بحالات شاشة الهوم
+          return current is MovieSearchLoadedState ||
+              current is MovieLoadingState ||
+              current is MovieErrorState;
+        },
         builder: (context, state) {
           if (state is MovieLoadingState) {
             return const Center(
               child: CircularProgressIndicator(color: Colors.amber),
             );
-          } else if (state is MovieErrorState) {
-            return Center(
-              child: Text(
-                'Error ${state.message}',
-                style: const TextStyle(color: Colors.red),
-              ),
-            );
           } else if (state is MovieSearchLoadedState) {
-            final results = state.searchResults;
+            final movies = state.searchResults;
 
-            if (results.isEmpty) {
+            if (movies.isEmpty) {
               return const Center(
                 child: Text(
-                  "No Similar Movie",
+                  'No movies found matching your search.',
                   style: TextStyle(color: Colors.white54, fontSize: 16),
                 ),
               );
             }
 
-            return ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemCount: results.length,
-              separatorBuilder: (_, __) => const Divider(color: Colors.white12),
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              itemCount: movies.length,
               itemBuilder: (context, index) {
-                final movie = results[index];
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: CachedNetworkImage(
-                      imageUrl: movie.fullPosterPath,
-                      width: 50,
-                      height: 75,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(color: Colors.grey[900]),
-                      errorWidget: (_, __, ___) => Container(
-                        color: Colors.grey[900],
-                        child: const Icon(Icons.movie, color: Colors.white24),
+                final movie = movies[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E24),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(8),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: movie.fullPosterPath.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: movie.fullPosterPath,
+                              width: 50,
+                              height: 75,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) => Container(color: Colors.black26),
+                              errorWidget: (_, __, ___) => Container(
+                                width: 50,
+                                height: 75,
+                                color: Colors.white10,
+                                child: const Icon(Icons.movie, color: Colors.white38),
+                              ),
+                            )
+                          : Container(
+                              width: 50,
+                              height: 75,
+                              color: Colors.white10,
+                              child: const Icon(Icons.movie, color: Colors.white38),
+                            ),
+                    ),
+                    title: Text(
+                      movie.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                  title: Text(
-                    movie.title,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Row(
-                    children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        movie.voteAverage.toStringAsFixed(1),
-                        style: const TextStyle(color: Colors.white70),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.star, color: Colors.amber, size: 15),
+                          const SizedBox(width: 4),
+                          Text(
+                            movie.voteAverage.toStringAsFixed(1),
+                            style: const TextStyle(color: Colors.white70, fontSize: 13),
+                          ),
+                          const SizedBox(width: 14),
+                          Text(
+                            movie.releaseDate.isNotEmpty ? movie.releaseDate : 'N/A',
+                            style: const TextStyle(color: Colors.white38, fontSize: 12),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Text(
-                        movie.releaseDate.length >= 4 ? movie.releaseDate.substring(0, 4) : '',
-                        style: const TextStyle(color: Colors.white38),
-                      ),
-                    ],
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white30, size: 16),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MovieDetailScreen(movie: movie),
+                        ),
+                      );
+                    },
                   ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MovieDetailScreen(movie: movie),
-                      ),
-                    );
-                  },
                 );
               },
+            );
+          } else if (state is MovieErrorState) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  state.message,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 15),
+                  textAlign: TextAlign.center,
+                ),
+              ),
             );
           }
 
           return const Center(
-            child: Text(
-              "Enter The Movie Name",
-              style: TextStyle(color: Colors.white38, fontSize: 16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.search, size: 64, color: Colors.white24),
+                SizedBox(height: 12),
+                Text(
+                  'Search for your favorite movies',
+                  style: TextStyle(color: Colors.white38, fontSize: 16),
+                ),
+              ],
             ),
           );
         },
